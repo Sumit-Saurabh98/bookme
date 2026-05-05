@@ -3,7 +3,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { BadRequestError, UnAuthorizedError } from "../utils/error.js";
 import { sendOTP, verifyOTP } from "../services/auth.service.js";
 import { getDeviceFingerPrint } from "../utils/deviceFingerprint.js"
-import { login as loginService, rotateRefreshToken as rotateRefreshTokenService } from "../services/auth.service.js"
+import { login as loginService, rotateRefreshToken as rotateRefreshTokenService, verifyGoogleIdToken as verifyGoogleIdTokenService } from "../services/auth.service.js"
 
 export const sendOtp = asyncHandler(async (req, res) => {
   const { firstName, lastName, email, password, confirmPassword } = req.body;
@@ -98,5 +98,33 @@ export const rotateRefreshToken = asyncHandler(async (req, res) => {
   }).status(200).json({
     success: true,
     message: "Access and Refresh token reissued"
+  })
+})
+
+export const verifyGoogleIdToken = asyncHandler(async (req, res) => {
+  const { idToken } = req.body
+
+  if (!idToken) {
+    throw new BadRequestError("Invalid Google ID Token", "INVALID TOKEN")
+  }
+
+  const deviceId = getDeviceFingerPrint(req)
+  const { accessToken, refreshToken, loggedInUser } = await verifyGoogleIdTokenService(idToken, deviceId)
+
+  res.cookie("accessToken", accessToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    maxAge: config.ACCESS_TOKEN_EXP_SEC * 1000
+  })
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    maxAge: config.REFRESH_TOKEN_EXP_SEC * 1000
+  }).status(200).json({
+    success: true,
+    message: "Logged in successfully",
+    loggedInUser
   })
 })

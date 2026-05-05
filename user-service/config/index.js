@@ -32,6 +32,9 @@ export const config = {
   REDIS_USER_TTL: Number(process.env.REDIS_USER_TTL || 86400),
 
   GMAIL_USER: process.env.GMAIL_USER,
-  GMAIL_APP_PASSWORD:process.env.GMAIL_APP_PASSWORD
+  GMAIL_APP_PASSWORD:process.env.GMAIL_APP_PASSWORD,
+
+  GOOGLE_CLIENT_ID:process.env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET:process.envGOOGLE_CLIENT_SECRET
 
 };
