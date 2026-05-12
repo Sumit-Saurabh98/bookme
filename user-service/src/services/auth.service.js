@@ -1,5 +1,4 @@
 import { prisma } from "../config/prisma.js";
-import { sendOtpEmail, verifyOtpEmail } from "../utils/email.js";
 import { BadRequestError, ConflictError, ForbiddenError, UnAuthorizedError } from "../utils/error.js";
 import { generateAndStoreOtp, verifyOtp } from "../utils/otp.js";
 import bcrypt from "bcrypt";
@@ -8,6 +7,8 @@ import { redis } from "../config/redis.js";
 import { config } from "../config/index.js";
 import { OAuth2Client } from "google-auth-library"
 import jwt from "jsonwebtoken"
+import { notificationProducer } from "../kafka/producer/notification.producer.js";
+import { logger } from "../config/logger.js";
 
 const client = new OAuth2Client(config.GOOGLE_CLIENT_ID)
 
@@ -24,7 +25,8 @@ export const sendOTP = async (firstName, lastName, email, password) => {
   const meta = { firstName, lastName, email, hashedPassword };
 
   const { otp, otpSessionId } = await generateAndStoreOtp(meta);
-  await sendOtpEmail(email, otp);
+  await notificationProducer.sendOtpEmail(email, otp, config.OTP_TTL/60)
+  logger.info("Otp email queued for: ", {email})
   return otpSessionId;
 };
 
@@ -45,7 +47,8 @@ export const verifyOTP = async (otp, otpSessionId) => {
     },
   });
 
-  await verifyOtpEmail(meta);
+  await notificationProducer.sendWelcomeEmail(meta.email, meta.firstName);
+  logger.info("Welcome email queued for: ", {email: meta.email})
   return user;
 };
 
@@ -106,7 +109,7 @@ export const verifyGoogleIdToken = async (idToken, deviceId) => {
   const payload = ticket.getPayload();
 
   if (!payload.sub || !payload.email) {
-    throw new UnauthorizedError("Invalid Google Token Payload")
+    throw new UnAuthorizedError("Invalid Google Token Payload")
   }
 
   const googleUser = {

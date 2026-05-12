@@ -10,6 +10,7 @@ export const config = {
   DATABASE_URL: process.env.DATABASE_URL,
   REDIS_URL: process.env.REDIS_URL,
   KAFKA_BROKER: process.env.KAFKA_BROKER,
+  KAFKA_CLIENT_ID:process.env.KAFKA_CLIENT_ID,
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
 
   OTP_TTL: process.env.OTP_TTL || 300,
@@ -35,6 +36,6 @@ export const config = {
   GMAIL_APP_PASSWORD:process.env.GMAIL_APP_PASSWORD,
 
   GOOGLE_CLIENT_ID:process.env.GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET:process.envGOOGLE_CLIENT_SECRET
+  GOOGLE_CLIENT_SECRET:process.env.GOOGLE_CLIENT_SECRET
 
 };
