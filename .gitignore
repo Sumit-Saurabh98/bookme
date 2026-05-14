@@ -49,7 +49,7 @@ web_modules/
 
 # Optional npm cache directory
 .npm
-
+.md
 # Optional eslint cache
 .eslintcache
 
@@ -73,6 +73,7 @@ web_modules/
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
+apigateway.excalidraw
 
 # Next.js build output
 .next
