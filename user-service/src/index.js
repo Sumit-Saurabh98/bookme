@@ -9,6 +9,7 @@ import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { reqLogger } from "./middlewares/req.middleware.js";
 
 import authRoutes from "./routes/auth.route.js"
+import userRoutes from "./routes/user.route.js"
 
 const app = express()
 
@@ -20,6 +21,7 @@ app.use(express.json({ limit: "16kb" }))
 app.use(express.urlencoded({ extended: true, limit: "16kb" }))
 
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/user", userRoutes);
 
 app.get("/", (req, res) => {
     res.send('Hello from index.js of user service')
