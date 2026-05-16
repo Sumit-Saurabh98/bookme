@@ -6,6 +6,7 @@ import { logger } from "./config/logger.js";
 
 import { corsMiddleware } from "./middlewares/cors.middleware.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
+import { requireGateway } from "./middlewares/getUserContext.middleware.js";
 import { reqLogger } from "./middlewares/req.middleware.js";
 
 import authRoutes from "./routes/auth.route.js"
@@ -20,8 +21,8 @@ app.use(cookieParser())
 app.use(express.json({ limit: "16kb" }))
 app.use(express.urlencoded({ extended: true, limit: "16kb" }))
 
-app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/user", userRoutes);
+app.use("/api/v1/auth", requireGateway, authRoutes);
+app.use("/api/v1/user", requireGateway, userRoutes);
 
 app.get("/", (req, res) => {
     res.send('Hello from index.js of user service')
@@ -45,4 +46,3 @@ const startServer = async () => {
 }
 
 startServer()
-
