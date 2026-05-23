@@ -1,5 +1,11 @@
 import { prisma } from "../config/prisma.js";
-import { ConflictError, NotFoundError } from "../utils/error.js";
+import { BadRequestError, ConflictError, NotFoundError } from "../utils/error.js";
+import {
+     assertAllowedValue,
+     BERTH_TYPES,
+     parsePositiveInteger,
+     parsePositiveNumber
+} from "../utils/domainEnums.js";
 import { adminProducer } from "../kafka/producer/admin.producer.js";
 
 const seatInclude = {
@@ -7,6 +13,8 @@ const seatInclude = {
           include: { train: true }
      }
 };
+
+const hasOwn = (object, key) => Boolean(object && Object.prototype.hasOwnProperty.call(object, key));
 
 const getCoachOrThrow = async (coachId) => {
      const coach = await prisma.coach.findUnique({
@@ -18,6 +26,18 @@ const getCoachOrThrow = async (coachId) => {
      }
 
      return coach;
+};
+
+const syncCoachTotalSeats = async (tx, coachId) => {
+     const totalSeats = await tx.seat.count({
+          where: { coachId }
+     });
+
+     return tx.coach.update({
+          where: { id: coachId },
+          data: { totalSeats },
+          include: { train: true }
+     });
 };
 
 export const getSeatsByCoach = async (coachId) => {
@@ -42,18 +62,29 @@ export const getSeatById = async (seatId) => {
      return seat;
 };
 
-export const createSeat = async (coachId, data) => {
+export const createSeat = async (coachId, data = {}) => {
      await getCoachOrThrow(coachId);
+     assertAllowedValue('berthType', data.berthType, BERTH_TYPES);
+     const seatNumber = parsePositiveInteger('seatNumber', data.seatNumber);
+     const price = parsePositiveNumber('price', data.price);
 
      try {
-          const seat = await prisma.seat.create({
-               data: {
-                    coachId,
-                    seatNumber: Number(data.seatNumber),
-                    berthType: data.berthType,
-                    price: Number(data.price)
-               },
-               include: seatInclude
+          const seat = await prisma.$transaction(async (tx) => {
+               const createdSeat = await tx.seat.create({
+                    data: {
+                         coachId,
+                         seatNumber,
+                         berthType: data.berthType,
+                         price
+                    }
+               });
+
+               await syncCoachTotalSeats(tx, coachId);
+
+               return tx.seat.findUnique({
+                    where: { id: createdSeat.id },
+                    include: seatInclude
+               });
           });
 
           await adminProducer.publishSeatCreated(seat);
@@ -66,8 +97,18 @@ export const createSeat = async (coachId, data) => {
      }
 };
 
-export const updateSeat = async (coachId, seatId, data) => {
+export const updateSeat = async (coachId, seatId, data = {}) => {
      const seat = await getSeatById(seatId);
+
+     if (hasOwn(data, 'seatNumber')) {
+          throw new BadRequestError('seatNumber cannot be changed after a seat is created');
+     }
+
+     if (hasOwn(data, 'berthType')) {
+          assertAllowedValue('berthType', data.berthType, BERTH_TYPES);
+     }
+
+     const price = hasOwn(data, 'price') ? parsePositiveNumber('price', data.price) : undefined;
 
      if (seat.coachId !== coachId) {
           throw new NotFoundError('Seat not found for this coach');
@@ -77,9 +118,8 @@ export const updateSeat = async (coachId, seatId, data) => {
           const updatedSeat = await prisma.seat.update({
                where: { id: seatId },
                data: {
-                    ...(data.seatNumber !== undefined ? { seatNumber: Number(data.seatNumber) } : {}),
                     ...(data.berthType ? { berthType: data.berthType } : {}),
-                    ...(data.price !== undefined ? { price: Number(data.price) } : {})
+                    ...(price !== undefined ? { price } : {})
                },
                include: seatInclude
           });
@@ -101,10 +141,20 @@ export const deleteSeat = async (coachId, seatId) => {
           throw new NotFoundError('Seat not found for this coach');
      }
 
-     const deletedSeat = await prisma.seat.delete({
-          where: { id: seatId }
+     const deletedSeat = await prisma.$transaction(async (tx) => {
+          const deleted = await tx.seat.delete({
+               where: { id: seatId }
+          });
+
+          const updatedCoach = await syncCoachTotalSeats(tx, coachId);
+
+          return {
+               ...seat,
+               ...deleted,
+               coach: updatedCoach
+          };
      });
 
-     await adminProducer.publishSeatDeleted(seat);
+     await adminProducer.publishSeatDeleted(deletedSeat);
      return deletedSeat;
 };

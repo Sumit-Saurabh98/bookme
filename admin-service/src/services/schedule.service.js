@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma.js";
 import { logger } from "../config/logger.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../utils/error.js";
+import { assertAllowedValue, SCHEDULE_STATUSES } from "../utils/domainEnums.js";
 import { adminProducer } from "../kafka/producer/admin.producer.js";
 
 const scheduleInclude = {
@@ -114,6 +115,7 @@ export const getAllSchedules = async (query = {}) => {
           where.trainId = query.trainId;
      }
      if (query.status) {
+          assertAllowedValue('status', query.status, SCHEDULE_STATUSES);
           where.status = query.status;
      }
      if (query.date) {

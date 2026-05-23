@@ -1,6 +1,13 @@
 import { prisma } from "../config/prisma.js";
 import { logger } from "../config/logger.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../utils/error.js";
+import {
+     assertAllowedValue,
+     BERTH_TYPES,
+     COACH_TYPES,
+     parsePositiveInteger,
+     parsePositiveNumber
+} from "../utils/domainEnums.js";
 import { adminProducer } from "../kafka/producer/admin.producer.js";
 
 const trainInclude = {
@@ -27,17 +34,38 @@ const routeInclude = {
      }
 };
 
+const hasOwn = (object, key) => Boolean(object && Object.prototype.hasOwnProperty.call(object, key));
+
 const validateCoaches = (coaches = []) => {
+     if (!Array.isArray(coaches)) {
+          throw new BadRequestError('coaches must be an array');
+     }
+
      for (const coach of coaches) {
-          if (!coach.coachNumber || !coach.coachType || !coach.totalSeats) {
-               throw new BadRequestError('coachNumber, coachType and totalSeats are required for every coach');
+          if (hasOwn(coach, 'totalSeats')) {
+               const coachLabel = coach.coachNumber ? ` for coach ${coach.coachNumber}` : '';
+               throw new BadRequestError(`totalSeats is calculated from seats and cannot be provided${coachLabel}`);
           }
+
+          if (!coach.coachNumber || !coach.coachType) {
+               throw new BadRequestError('coachNumber and coachType are required for every coach');
+          }
+
+          assertAllowedValue('coachType', coach.coachType, COACH_TYPES);
 
           if (!Array.isArray(coach.seats) || !coach.seats.length) {
                throw new BadRequestError('Every coach must have at least one seat');
           }
 
-          const seatNumbers = coach.seats.map((seat) => seat.seatNumber);
+          for (const seat of coach.seats) {
+               if (seat.seatNumber === undefined || !seat.berthType || seat.price === undefined) {
+                    throw new BadRequestError(`seatNumber, berthType and price are required for every seat in coach ${coach.coachNumber}`);
+               }
+
+               assertAllowedValue('berthType', seat.berthType, BERTH_TYPES);
+          }
+
+          const seatNumbers = coach.seats.map((seat) => parsePositiveInteger('seatNumber', seat.seatNumber));
           if (new Set(seatNumbers).size !== seatNumbers.length) {
                throw new BadRequestError(`Duplicate seat numbers found in coach ${coach.coachNumber}`);
           }
@@ -72,7 +100,7 @@ const routeStationCreateData = (stations) => stations.map((station) => ({
      distanceFromOrigin: Number(station.distanceFromOrigin || 0)
 }));
 
-export const createTrain = async (data) => {
+export const createTrain = async (data = {}) => {
      const { trainNumber, trainName, coaches = [] } = data;
 
      const existing = await prisma.train.findUnique({
@@ -95,12 +123,12 @@ export const createTrain = async (data) => {
                create: coaches.map((coach) => ({
                          coachNumber: coach.coachNumber.trim(),
                          coachType: coach.coachType,
-                         totalSeats: Number(coach.totalSeats),
+                         totalSeats: coach.seats.length,
                          seats: {
                               create: coach.seats.map((seat) => ({
-                                   seatNumber: Number(seat.seatNumber),
+                                   seatNumber: parsePositiveInteger('seatNumber', seat.seatNumber),
                                    berthType: seat.berthType,
-                                   price: Number(seat.price)
+                                   price: parsePositiveNumber('price', seat.price)
                               }))
                          }
                     }))

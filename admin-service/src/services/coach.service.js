@@ -1,10 +1,59 @@
 import { prisma } from "../config/prisma.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../utils/error.js";
+import {
+     assertAllowedValue,
+     BERTH_TYPES,
+     COACH_TYPES,
+     parsePositiveInteger,
+     parsePositiveNumber
+} from "../utils/domainEnums.js";
 import { adminProducer } from "../kafka/producer/admin.producer.js";
 
 const coachInclude = {
      seats: { orderBy: { seatNumber: 'asc' } },
      train: true
+};
+
+const hasOwn = (object, key) => Boolean(object && Object.prototype.hasOwnProperty.call(object, key));
+
+const rejectManagedTotalSeats = (data) => {
+     if (hasOwn(data, 'totalSeats')) {
+          throw new BadRequestError('totalSeats is calculated from seats and cannot be provided directly');
+     }
+};
+
+const normalizeSeatCreateData = (seats = []) => {
+     if (seats === undefined) {
+          return [];
+     }
+
+     if (!Array.isArray(seats)) {
+          throw new BadRequestError('seats must be an array');
+     }
+
+     const seenSeatNumbers = new Set();
+
+     return seats.map((seat) => {
+          if (seat.seatNumber === undefined || !seat.berthType || seat.price === undefined) {
+               throw new BadRequestError('seatNumber, berthType and price are required for every seat');
+          }
+
+          assertAllowedValue('berthType', seat.berthType, BERTH_TYPES);
+
+          const seatNumber = parsePositiveInteger('seatNumber', seat.seatNumber);
+
+          if (seenSeatNumbers.has(seatNumber)) {
+               throw new BadRequestError(`Duplicate seat number ${seatNumber} found`);
+          }
+
+          seenSeatNumbers.add(seatNumber);
+
+          return {
+               seatNumber,
+               berthType: seat.berthType,
+               price: parsePositiveNumber('price', seat.price)
+          };
+     });
 };
 
 const getTrainOrThrow = async (trainId) => {
@@ -42,12 +91,17 @@ export const getCoachesByTrain = async (trainId) => {
      });
 };
 
-export const createCoach = async (trainId, data) => {
+export const createCoach = async (trainId, data = {}) => {
      await getTrainOrThrow(trainId);
+     rejectManagedTotalSeats(data);
 
-     if (!data.coachNumber || !data.coachType || !data.totalSeats) {
-          throw new BadRequestError('coachNumber, coachType and totalSeats are required');
+     if (!data.coachNumber || !data.coachType) {
+          throw new BadRequestError('coachNumber and coachType are required');
      }
+
+     assertAllowedValue('coachType', data.coachType, COACH_TYPES);
+
+     const seats = normalizeSeatCreateData(data.seats);
 
      try {
           const coach = await prisma.coach.create({
@@ -55,14 +109,10 @@ export const createCoach = async (trainId, data) => {
                     trainId,
                     coachNumber: data.coachNumber.trim(),
                     coachType: data.coachType,
-                    totalSeats: Number(data.totalSeats),
-                    ...(Array.isArray(data.seats) && data.seats.length ? {
+                    totalSeats: seats.length,
+                    ...(seats.length ? {
                          seats: {
-                              create: data.seats.map((seat) => ({
-                                   seatNumber: Number(seat.seatNumber),
-                                   berthType: seat.berthType,
-                                   price: Number(seat.price)
-                              }))
+                              create: seats
                          }
                     } : {})
                },
@@ -79,22 +129,41 @@ export const createCoach = async (trainId, data) => {
      }
 };
 
-export const updateCoach = async (trainId, coachId, data) => {
+export const updateCoach = async (trainId, coachId, data = {}) => {
      const coach = await getCoachById(coachId);
+     rejectManagedTotalSeats(data);
 
      if (coach.trainId !== trainId) {
           throw new NotFoundError('Coach not found for this train');
      }
 
+     if (hasOwn(data, 'coachType')) {
+          assertAllowedValue('coachType', data.coachType, COACH_TYPES);
+     }
+
      try {
-          const updatedCoach = await prisma.coach.update({
-               where: { id: coachId },
-               data: {
+          const updatedCoach = await prisma.$transaction(async (tx) => {
+               const coachData = {
                     ...(data.coachNumber ? { coachNumber: data.coachNumber.trim() } : {}),
-                    ...(data.coachType ? { coachType: data.coachType } : {}),
-                    ...(data.totalSeats !== undefined ? { totalSeats: Number(data.totalSeats) } : {})
-               },
-               include: coachInclude
+                    ...(data.coachType ? { coachType: data.coachType } : {})
+               };
+
+               if (Object.keys(coachData).length) {
+                    await tx.coach.update({
+                         where: { id: coachId },
+                         data: coachData
+                    });
+               }
+
+               const totalSeats = await tx.seat.count({
+                    where: { coachId }
+               });
+
+               return tx.coach.update({
+                    where: { id: coachId },
+                    data: { totalSeats },
+                    include: coachInclude
+               });
           });
 
           await adminProducer.publishCoachUpdated(updatedCoach);
