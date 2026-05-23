@@ -6,9 +6,10 @@ export const hashToken = (refreshToken) => {
     return crypto.createHash('sha256').update(refreshToken).digest('hex');
 }
 
-export const generateAccessToken = (userId) => {
+export const generateAccessToken = (userId, role = "USER") => {
     const payload = {
-        id: userId
+        id: userId,
+        role
     }
 
     return jwt.sign(payload, config.JWT_ACCESS_SECRET, { expiresIn: config.ACCESS_TOKEN_EXP })

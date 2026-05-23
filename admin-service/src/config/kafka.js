@@ -33,11 +33,10 @@ export const connectProducer = async () => {
     }
 }
 
-export const diconnectProducer = async () =>{
+export const disconnectProducer = async () =>{
     if(isConnected){
         await producer.disconnect()
         isConnected = false
         logger.info('Kafka producer disconnected');
     }
 }
-

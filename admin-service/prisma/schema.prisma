@@ -5,3 +5,128 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum CoachType {
+  AC_FIRST_CLASS
+  AC_TWO_TIER
+  AC_THREE_TIER
+  SLEEPER
+  GENERAL
+}
+
+enum BerthType {
+  LOWER
+  MIDDLE
+  UPPER
+  SIDE_LOWER
+  SIDE_UPPER
+}
+
+enum ScheduleStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model Station {
+  id        String   @id @default(uuid())
+  name      String   @unique // "New Delhi"
+  code      String   @unique // "NDLS"
+  city      String           // "Delhi"
+  state     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routeStations RouteStation[]
+
+  @@index([name])
+  @@index([code])
+  @@map("stations")
+}
+
+model Train {
+  id          String   @id @default(uuid())
+  trainNumber String   @unique // "12301"
+  trainName   String           // "Rajdhani Express"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  coaches   Coach[]
+  route     Route?
+  schedules Schedule[]
+
+  @@map("trains")
+}
+
+model Coach {
+  id          String    @id @default(uuid())
+  trainId     String
+  coachNumber String              // "A1", "B2", "S3", "G1"
+  coachType   CoachType           // AC_FIRST_CLASS, SLEEPER, etc.
+  totalSeats  Int                 // total seats in this coach
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  train Train  @relation(fields: [trainId], references: [id], onDelete: Cascade)
+  seats Seat[]
+
+  @@unique([trainId, coachNumber])
+  @@index([trainId])
+  @@map("coaches")
+}
+
+model Seat {
+  id         String    @id @default(uuid())
+  coachId    String
+  seatNumber Int                 // 1, 2, 3... within the coach
+  berthType  BerthType           // LOWER, MIDDLE, UPPER etc.
+  price      Float               // price for this berth type
+
+  coach Coach @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@unique([coachId, seatNumber])
+  @@index([coachId])
+  @@map("seats")
+}
+
+model Route {
+  id      String @id @default(uuid())
+  trainId String @unique
+
+  train         Train          @relation(fields: [trainId], references: [id], onDelete: Cascade)
+  routeStations RouteStation[]
+
+  @@map("routes")
+}
+
+model RouteStation {
+  id                 String  @id @default(uuid())
+  routeId            String
+  stationId          String
+  sequenceNumber     Int             // 1, 2, 3... order in route
+  arrivalTime        String?         // "06:00" (null for first station)
+  departureTime      String?         // "06:10" (null for last station)
+  distanceFromOrigin Float   @default(0) // in km
+
+  route   Route   @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  station Station @relation(fields: [stationId], references: [id], onDelete: Cascade)
+
+  @@unique([routeId, sequenceNumber])
+  @@unique([routeId, stationId])
+  @@index([routeId])
+  @@map("route_stations")
+}
+
+model Schedule {
+  id            String         @id @default(uuid())
+  trainId       String
+  departureDate DateTime       @db.Date  // the date this train runs
+  status        ScheduleStatus @default(ACTIVE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  train Train @relation(fields: [trainId], references: [id], onDelete: Cascade)
+
+  @@unique([trainId, departureDate])
+  @@index([trainId])
+  @@map("schedules")
+}

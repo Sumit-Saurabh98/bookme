@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
-import { UnauthorizedError } from '../utils/error.js';
+import { ForbiddenError, UnauthorizedError } from '../utils/error.js';
 import { logger } from '../config/logger.js';
 
 export const requireAuth = (req, res, next) => {
@@ -22,13 +22,10 @@ export const requireAuth = (req, res, next) => {
                throw new UnauthorizedError('Invalid token payload');
           }
 
-          // Attach user context to request for downstream services
           req.user = {
                id: payload.id,
+               role: payload.role || 'USER'
           };
-
-          // Add user ID to headers for proxied requests
-          req.headers['x-user-id'] = payload.id.toString();
 
           logger.debug(`User ${payload.id} authenticated successfully`);
 
@@ -44,5 +41,14 @@ export const requireAuth = (req, res, next) => {
      }
 }
 
+export const requireRole = (...allowedRoles) => {
+     return (req, res, next) => {
+          if (!req.user?.role || !allowedRoles.includes(req.user.role)) {
+               return next(new ForbiddenError('Admin access required', 'ADMIN_ACCESS_REQUIRED'));
+          }
 
+          next();
+     };
+}
 
+export const requireAdmin = requireRole('ADMIN');

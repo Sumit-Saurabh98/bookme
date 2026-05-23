@@ -71,6 +71,7 @@ export class CircuitBreaker {
 // Circuit breakers for each service
 export const circuitBreakers = {
      userService: new CircuitBreaker('user-service'),
+     adminService: new CircuitBreaker('admin-service'),
      searchService: new CircuitBreaker('search-service'),
      bookingService: new CircuitBreaker('booking-service')
 };
@@ -165,8 +166,9 @@ async function forwardRequest(serviceUrl, path, method, data, headers, circuitBr
 /**
  * Proxy middleware factory
  */
-export function createProxy(serviceName, serviceUrl) {
+export function createProxy(serviceName, serviceUrl, options = {}) {
      const circuitBreaker = circuitBreakers[serviceName];
+     const stripPathSegments = options.stripPathSegments ?? 1;
 
      if (!circuitBreaker) {
           throw new Error(`No circuit breaker found for service: ${serviceName}`);
@@ -176,24 +178,21 @@ export function createProxy(serviceName, serviceUrl) {
           try {
                const forwardedHeaders = { ...req.headers };
                delete forwardedHeaders['x-user-id'];
+               delete forwardedHeaders['x-user-role'];
                delete forwardedHeaders['x-gateway-secret'];
 
                if (req.user?.id) {
                     forwardedHeaders['x-user-id'] = req.user.id.toString();
                }
+               if (req.user?.role) {
+                    forwardedHeaders['x-user-role'] = req.user.role;
+               }
 
                forwardedHeaders['x-gateway-secret'] = config.INTERNAL_GATEWAY_SECRET;
 
-               // Extract path (remove /api prefix only)
-               // Gateway: /api/users/auth/login -> Service: /auth/login
-               // Gateway: /api/users/user/profile -> Service: /user/profile
-               logger.info(req.path);
                const pathParts = req.path.split('/').filter(Boolean);
-               logger.info(pathParts);
-               // Remove 'users' (first part), keep the rest
-               // ['users', 'auth', 'login'] -> ['auth', 'login'] -> '/auth/login'
-               const servicePath = '/' + pathParts.slice(1).join('/');
-               logger.info(servicePath);
+               const servicePath = '/' + pathParts.slice(stripPathSegments).join('/');
+               logger.debug(`Proxy path rewrite ${req.path} -> ${servicePath}`);
 
                const result = await forwardRequest(
                     serviceUrl,

@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth } from '../middlewares/auth.middleware.js';
+import { requireAdmin, requireAuth } from '../middlewares/auth.middleware.js';
 import { createProxy, getCircuitBreakerStatus } from '../services/proxy.js';
 import { endpointRateLimit, combinedRateLimit } from '../middlewares/rateLimiting.middleware.js'
 import { config } from '../config/index.js';
@@ -17,6 +17,9 @@ const router = express.Router();
 **/
 
 const userServiceProxy = createProxy('userService', config.SERVICES.USER_SERVICE_URL);
+const adminServiceProxy = createProxy('adminService', config.SERVICES.ADMIN_SERVICE_URL, {
+     stripPathSegments: 0
+});
 
 // public routes
 router.post(
@@ -77,6 +80,14 @@ router.delete(
      userServiceProxy
 )
 
+// admin routes
+router.use(
+     '/admin',
+     requireAuth,
+     requireAdmin,
+     combinedRateLimit(),
+     adminServiceProxy
+);
 
 // Gateway Health Status
 

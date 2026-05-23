@@ -67,7 +67,7 @@ export const login = async (email, password, deviceId) => {
     throw new BadRequestError("Incorrect password")
   }
 
-  const accessToken = generateAccessToken(existingUser.id)
+  const accessToken = generateAccessToken(existingUser.id, existingUser.role)
   const refreshToken = generateRefreshToken(existingUser.id)
 
   const { jti } = jwt.decode(refreshToken)
@@ -92,7 +92,17 @@ export const rotateRefreshToken = async (refreshToken, deviceId) => {
     throw new ForbiddenError("Refreshed token reused", "LOGIN AGAIN")
   }
 
-  const newAccessToken = generateAccessToken(payload.id)
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true }
+  })
+
+  if (!existingUser) {
+    await redis.del(`refresh:${userId}:${deviceId}`)
+    throw new UnAuthorizedError("User not found", "LOGIN AGAIN")
+  }
+
+  const newAccessToken = generateAccessToken(payload.id, existingUser.role)
   const newRefreshToken = generateRefreshToken(payload.id)
 
   const { jti: newJti } = jwt.decode(newRefreshToken)
@@ -168,7 +178,7 @@ export const verifyGoogleIdToken = async (idToken, deviceId) => {
     })
   })
 
-  const accessToken = generateAccessToken(user.id);
+  const accessToken = generateAccessToken(user.id, user.role);
   const refreshToken = generateRefreshToken(user.id);
   const { jti } = jwt.decode(refreshToken);
   await redis.set(`refresh:${user.id}:${deviceId}`, jti, 'EX', config.REFRESH_TOKEN_EXP_SEC);
