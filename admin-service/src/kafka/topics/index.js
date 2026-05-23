@@ -25,6 +25,7 @@ export const KAFKA_TOPICS = {
      SEAT_DELETED: 'admin.seat-deleted',
      SCHEDULE_CANCELLED: 'admin.schedule-cancelled',
      SCHEDULE_ACTIVATED: 'admin.schedule-activated',
+     SCHEDULE_RESCHEDULED: 'admin.schedule-rescheduled',
 
      // Inventory topics (inventory-service -> search-service)
      SEAT_AVAILABILITY_UPDATED: 'inventory.seat-availability-updated',

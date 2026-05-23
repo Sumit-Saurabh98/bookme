@@ -5,7 +5,8 @@ import {
      cancelSchedule as cancelScheduleService,
      createSchedule as createScheduleService,
      getAllSchedules as getAllSchedulesService,
-     getScheduleById as getScheduleByIdService
+     getScheduleById as getScheduleByIdService,
+     rescheduleSchedule as rescheduleScheduleService
 } from "../services/schedule.service.js";
 
 export const createSchedule = asyncHandler(async(req, res) => {
@@ -52,6 +53,23 @@ export const activateSchedule = asyncHandler(async(req, res) => {
      return res.status(200).json({
           success: true,
           message: "Schedule activated successfully",
+          data: schedule
+     });
+});
+
+export const rescheduleSchedule = asyncHandler(async(req, res) => {
+     const { scheduleId } = req.params;
+     const { departureDate } = req.body;
+
+     if (!scheduleId || !departureDate) {
+          throw new BadRequestError("Schedule id and departureDate are required");
+     }
+
+     const schedule = await rescheduleScheduleService(scheduleId, departureDate);
+
+     return res.status(200).json({
+          success: true,
+          message: "Schedule rescheduled successfully",
           data: schedule
      });
 });

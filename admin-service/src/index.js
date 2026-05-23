@@ -13,6 +13,7 @@ import { reqLogger } from "./middlewares/req.middleware.js";
 
 import stationRoutes from "./routes/station.route.js";
 import trainRoutes from "./routes/train.route.js";
+import routeRoutes from "./routes/route.route.js";
 import scheduleRoutes from "./routes/schedule.route.js";
 import coachRoutes from "./routes/coach.route.js";
 import seatRoutes from "./routes/seat.route.js";
@@ -46,6 +47,7 @@ const adminOnly = [requireGateway, getUserContext, requireAdminContext];
 
 app.use("/api/v1/stations", adminOnly, stationRoutes);
 app.use("/api/v1/trains", adminOnly, trainRoutes);
+app.use("/api/v1/routes", adminOnly, routeRoutes);
 app.use("/api/v1/schedules", adminOnly, scheduleRoutes);
 app.use("/api/v1", adminOnly, coachRoutes);
 app.use("/api/v1", adminOnly, seatRoutes);

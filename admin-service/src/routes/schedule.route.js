@@ -4,7 +4,8 @@ import {
      cancelSchedule,
      createSchedule,
      getAllSchedules,
-     getScheduleById
+     getScheduleById,
+     rescheduleSchedule
 } from "../controllers/schedule.controller.js";
 
 const router = express.Router();
@@ -12,6 +13,7 @@ const router = express.Router();
 router.get("/", getAllSchedules);
 router.get("/:scheduleId", getScheduleById);
 router.post("/", createSchedule);
+router.patch("/:scheduleId/reschedule", rescheduleSchedule);
 router.patch("/:scheduleId/cancel", cancelSchedule);
 router.patch("/:scheduleId/activate", activateSchedule);
 

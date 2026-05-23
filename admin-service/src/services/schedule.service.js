@@ -71,6 +71,17 @@ const buildScheduleCreatedPayload = (schedule) => {
      };
 };
 
+const buildScheduleRescheduledPayload = (schedule, previousDepartureDate) => ({
+     eventType: 'SCHEDULE_RESCHEDULED',
+     id: schedule.id,
+     trainId: schedule.trainId,
+     previousDepartureDate,
+     departureDate: schedule.departureDate,
+     status: schedule.status,
+     data: schedule,
+     timestamp: new Date().toISOString()
+});
+
 export const createSchedule = async ({ trainId, departureDate }) => {
      const train = await prisma.train.findUnique({
           where: { id: trainId },
@@ -140,6 +151,36 @@ export const getScheduleById = async (scheduleId) => {
      }
 
      return schedule;
+};
+
+export const rescheduleSchedule = async (scheduleId, departureDate) => {
+     const schedule = await getScheduleById(scheduleId);
+     const parsedDate = parseDepartureDate(departureDate);
+
+     const existing = await prisma.schedule.findUnique({
+          where: {
+               trainId_departureDate: {
+                    trainId: schedule.trainId,
+                    departureDate: parsedDate
+               }
+          }
+     });
+
+     if (existing && existing.id !== scheduleId) {
+          throw new ConflictError('Schedule already exists for this train on this date');
+     }
+
+     const updated = await prisma.schedule.update({
+          where: { id: scheduleId },
+          data: { departureDate: parsedDate },
+          include: scheduleInclude
+     });
+
+     await adminProducer.publishScheduleRescheduled(
+          buildScheduleRescheduledPayload(updated, schedule.departureDate)
+     );
+
+     return updated;
 };
 
 export const cancelSchedule = async (scheduleId) => {

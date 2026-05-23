@@ -187,6 +187,14 @@ export class AdminProducer {
             scheduleData
         );
     }
+
+    async publishScheduleRescheduled(scheduleData) {
+        return this.sendMessage(
+            KAFKA_TOPICS.SCHEDULE_RESCHEDULED,
+            `schedule-${scheduleData.id}`,
+            scheduleData
+        );
+    }
 }
 
 export const adminProducer = new AdminProducer();
