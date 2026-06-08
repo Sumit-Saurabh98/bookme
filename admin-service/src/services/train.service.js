@@ -5,8 +5,9 @@ import {
      assertAllowedValue,
      BERTH_TYPES,
      COACH_TYPES,
-     parsePositiveInteger,
-     parsePositiveNumber
+     parseNonNegativeInteger,
+     parseNonNegativeNumber,
+     parsePositiveInteger
 } from "../utils/domainEnums.js";
 import { adminProducer } from "../kafka/producer/admin.producer.js";
 
@@ -53,13 +54,24 @@ const validateCoaches = (coaches = []) => {
 
           assertAllowedValue('coachType', coach.coachType, COACH_TYPES);
 
+          if (coach.baseFare === undefined || coach.farePerKm === undefined) {
+               throw new BadRequestError(`baseFare and farePerKm are required for coach ${coach.coachNumber}`);
+          }
+
+          parseNonNegativeNumber('baseFare', coach.baseFare);
+          parseNonNegativeNumber('farePerKm', coach.farePerKm);
+
           if (!Array.isArray(coach.seats) || !coach.seats.length) {
                throw new BadRequestError('Every coach must have at least one seat');
           }
 
           for (const seat of coach.seats) {
-               if (seat.seatNumber === undefined || !seat.berthType || seat.price === undefined) {
-                    throw new BadRequestError(`seatNumber, berthType and price are required for every seat in coach ${coach.coachNumber}`);
+               if (hasOwn(seat, 'price')) {
+                    throw new BadRequestError(`price is managed at coach level and cannot be provided for seats in coach ${coach.coachNumber}`);
+               }
+
+               if (seat.seatNumber === undefined || !seat.berthType) {
+                    throw new BadRequestError(`seatNumber and berthType are required for every seat in coach ${coach.coachNumber}`);
                }
 
                assertAllowedValue('berthType', seat.berthType, BERTH_TYPES);
@@ -82,11 +94,21 @@ const validateRouteStations = async (stations) => {
           throw new BadRequestError('One or more station IDs are invalid');
      }
 
-     const sorted = [...stations].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+     const sorted = [...stations].sort((a, b) => Number(a.sequenceNumber) - Number(b.sequenceNumber));
      for (let index = 0; index < sorted.length; index += 1) {
-          if (Number(sorted[index].sequenceNumber) !== index + 1) {
+          if (parsePositiveInteger('sequenceNumber', sorted[index].sequenceNumber) !== index + 1) {
                throw new BadRequestError('Sequence numbers must be continuous starting from 1');
           }
+
+          if (sorted[index].arrivalDayOffset !== undefined) {
+               parseNonNegativeInteger('arrivalDayOffset', sorted[index].arrivalDayOffset);
+          }
+
+          if (sorted[index].departureDayOffset !== undefined) {
+               parseNonNegativeInteger('departureDayOffset', sorted[index].departureDayOffset);
+          }
+
+          parseNonNegativeNumber('distanceFromOrigin', sorted[index].distanceFromOrigin || 0);
      }
 
      return sorted;
@@ -94,10 +116,16 @@ const validateRouteStations = async (stations) => {
 
 const routeStationCreateData = (stations) => stations.map((station) => ({
      stationId: station.stationId,
-     sequenceNumber: Number(station.sequenceNumber),
+     sequenceNumber: parsePositiveInteger('sequenceNumber', station.sequenceNumber),
      arrivalTime: station.arrivalTime || null,
      departureTime: station.departureTime || null,
-     distanceFromOrigin: Number(station.distanceFromOrigin || 0)
+     arrivalDayOffset: station.arrivalDayOffset !== undefined
+          ? parseNonNegativeInteger('arrivalDayOffset', station.arrivalDayOffset)
+          : 0,
+     departureDayOffset: station.departureDayOffset !== undefined
+          ? parseNonNegativeInteger('departureDayOffset', station.departureDayOffset)
+          : 0,
+     distanceFromOrigin: parseNonNegativeNumber('distanceFromOrigin', station.distanceFromOrigin || 0)
 }));
 
 export const createTrain = async (data = {}) => {
@@ -124,11 +152,12 @@ export const createTrain = async (data = {}) => {
                          coachNumber: coach.coachNumber.trim(),
                          coachType: coach.coachType,
                          totalSeats: coach.seats.length,
+                         baseFare: parseNonNegativeNumber('baseFare', coach.baseFare),
+                         farePerKm: parseNonNegativeNumber('farePerKm', coach.farePerKm),
                          seats: {
                               create: coach.seats.map((seat) => ({
                                    seatNumber: parsePositiveInteger('seatNumber', seat.seatNumber),
-                                   berthType: seat.berthType,
-                                   price: parsePositiveNumber('price', seat.price)
+                                   berthType: seat.berthType
                               }))
                          }
                     }))

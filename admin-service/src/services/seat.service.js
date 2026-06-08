@@ -3,8 +3,7 @@ import { BadRequestError, ConflictError, NotFoundError } from "../utils/error.js
 import {
      assertAllowedValue,
      BERTH_TYPES,
-     parsePositiveInteger,
-     parsePositiveNumber
+     parsePositiveInteger
 } from "../utils/domainEnums.js";
 import { adminProducer } from "../kafka/producer/admin.producer.js";
 
@@ -64,9 +63,12 @@ export const getSeatById = async (seatId) => {
 
 export const createSeat = async (coachId, data = {}) => {
      await getCoachOrThrow(coachId);
+     if (hasOwn(data, 'price')) {
+          throw new BadRequestError('price is managed at coach level and cannot be provided for a seat');
+     }
+
      assertAllowedValue('berthType', data.berthType, BERTH_TYPES);
      const seatNumber = parsePositiveInteger('seatNumber', data.seatNumber);
-     const price = parsePositiveNumber('price', data.price);
 
      try {
           const seat = await prisma.$transaction(async (tx) => {
@@ -74,8 +76,7 @@ export const createSeat = async (coachId, data = {}) => {
                     data: {
                          coachId,
                          seatNumber,
-                         berthType: data.berthType,
-                         price
+                         berthType: data.berthType
                     }
                });
 
@@ -104,11 +105,13 @@ export const updateSeat = async (coachId, seatId, data = {}) => {
           throw new BadRequestError('seatNumber cannot be changed after a seat is created');
      }
 
+     if (hasOwn(data, 'price')) {
+          throw new BadRequestError('price is managed at coach level and cannot be updated on a seat');
+     }
+
      if (hasOwn(data, 'berthType')) {
           assertAllowedValue('berthType', data.berthType, BERTH_TYPES);
      }
-
-     const price = hasOwn(data, 'price') ? parsePositiveNumber('price', data.price) : undefined;
 
      if (seat.coachId !== coachId) {
           throw new NotFoundError('Seat not found for this coach');
@@ -118,8 +121,7 @@ export const updateSeat = async (coachId, seatId, data = {}) => {
           const updatedSeat = await prisma.seat.update({
                where: { id: seatId },
                data: {
-                    ...(data.berthType ? { berthType: data.berthType } : {}),
-                    ...(price !== undefined ? { price } : {})
+                    ...(data.berthType ? { berthType: data.berthType } : {})
                },
                include: seatInclude
           });

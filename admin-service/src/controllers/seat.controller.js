@@ -30,10 +30,10 @@ export const getSeatById = asyncHandler(async (req, res) => {
 
 export const createSeat = asyncHandler(async (req, res) => {
      const { coachId } = req.params;
-     const { seatNumber, berthType, price } = req.body;
+     const { seatNumber, berthType } = req.body;
 
-     if (!coachId || seatNumber === undefined || !berthType || price === undefined) {
-          throw new BadRequestError('coachId, seatNumber, berthType and price are required');
+     if (!coachId || seatNumber === undefined || !berthType) {
+          throw new BadRequestError('coachId, seatNumber and berthType are required');
      }
 
      const seat = await createSeatService(coachId, req.body);

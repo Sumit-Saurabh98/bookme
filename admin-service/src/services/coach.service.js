@@ -4,8 +4,8 @@ import {
      assertAllowedValue,
      BERTH_TYPES,
      COACH_TYPES,
-     parsePositiveInteger,
-     parsePositiveNumber
+     parseNonNegativeNumber,
+     parsePositiveInteger
 } from "../utils/domainEnums.js";
 import { adminProducer } from "../kafka/producer/admin.producer.js";
 
@@ -34,8 +34,12 @@ const normalizeSeatCreateData = (seats = []) => {
      const seenSeatNumbers = new Set();
 
      return seats.map((seat) => {
-          if (seat.seatNumber === undefined || !seat.berthType || seat.price === undefined) {
-               throw new BadRequestError('seatNumber, berthType and price are required for every seat');
+          if (hasOwn(seat, 'price')) {
+               throw new BadRequestError('price is managed at coach level and cannot be provided for a seat');
+          }
+
+          if (seat.seatNumber === undefined || !seat.berthType) {
+               throw new BadRequestError('seatNumber and berthType are required for every seat');
           }
 
           assertAllowedValue('berthType', seat.berthType, BERTH_TYPES);
@@ -50,8 +54,7 @@ const normalizeSeatCreateData = (seats = []) => {
 
           return {
                seatNumber,
-               berthType: seat.berthType,
-               price: parsePositiveNumber('price', seat.price)
+               berthType: seat.berthType
           };
      });
 };
@@ -95,11 +98,13 @@ export const createCoach = async (trainId, data = {}) => {
      await getTrainOrThrow(trainId);
      rejectManagedTotalSeats(data);
 
-     if (!data.coachNumber || !data.coachType) {
-          throw new BadRequestError('coachNumber and coachType are required');
+     if (!data.coachNumber || !data.coachType || data.baseFare === undefined || data.farePerKm === undefined) {
+          throw new BadRequestError('coachNumber, coachType, baseFare and farePerKm are required');
      }
 
      assertAllowedValue('coachType', data.coachType, COACH_TYPES);
+     const baseFare = parseNonNegativeNumber('baseFare', data.baseFare);
+     const farePerKm = parseNonNegativeNumber('farePerKm', data.farePerKm);
 
      const seats = normalizeSeatCreateData(data.seats);
 
@@ -110,6 +115,8 @@ export const createCoach = async (trainId, data = {}) => {
                     coachNumber: data.coachNumber.trim(),
                     coachType: data.coachType,
                     totalSeats: seats.length,
+                    baseFare,
+                    farePerKm,
                     ...(seats.length ? {
                          seats: {
                               create: seats
@@ -145,7 +152,9 @@ export const updateCoach = async (trainId, coachId, data = {}) => {
           const updatedCoach = await prisma.$transaction(async (tx) => {
                const coachData = {
                     ...(data.coachNumber ? { coachNumber: data.coachNumber.trim() } : {}),
-                    ...(data.coachType ? { coachType: data.coachType } : {})
+                    ...(data.coachType ? { coachType: data.coachType } : {}),
+                    ...(hasOwn(data, 'baseFare') ? { baseFare: parseNonNegativeNumber('baseFare', data.baseFare) } : {}),
+                    ...(hasOwn(data, 'farePerKm') ? { farePerKm: parseNonNegativeNumber('farePerKm', data.farePerKm) } : {})
                };
 
                if (Object.keys(coachData).length) {

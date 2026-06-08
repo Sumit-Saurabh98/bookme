@@ -37,11 +37,31 @@ export const parsePositiveInteger = (fieldName, value) => {
      return number;
 };
 
+export const parseNonNegativeInteger = (fieldName, value) => {
+     const number = Number(value);
+
+     if (!Number.isInteger(number) || number < 0) {
+          throw new BadRequestError(`${fieldName} must be a non-negative integer`);
+     }
+
+     return number;
+};
+
 export const parsePositiveNumber = (fieldName, value) => {
      const number = Number(value);
 
      if (!Number.isFinite(number) || number <= 0) {
           throw new BadRequestError(`${fieldName} must be a positive number`);
+     }
+
+     return number;
+};
+
+export const parseNonNegativeNumber = (fieldName, value) => {
+     const number = Number(value);
+
+     if (!Number.isFinite(number) || number < 0) {
+          throw new BadRequestError(`${fieldName} must be a non-negative number`);
      }
 
      return number;

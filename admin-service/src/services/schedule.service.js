@@ -51,11 +51,12 @@ const buildScheduleCreatedPayload = (schedule) => {
                coachNumber: coach.coachNumber,
                coachType: coach.coachType,
                totalSeats: coach.totalSeats,
+               baseFare: coach.baseFare,
+               farePerKm: coach.farePerKm,
                seats: coach.seats.map((seat) => ({
                     seatId: seat.id,
                     seatNumber: seat.seatNumber,
-                    berthType: seat.berthType,
-                    price: seat.price
+                    berthType: seat.berthType
                }))
           })),
           route: schedule.train.route.routeStations.map((routeStation) => ({
@@ -66,6 +67,8 @@ const buildScheduleCreatedPayload = (schedule) => {
                sequenceNumber: routeStation.sequenceNumber,
                arrivalTime: routeStation.arrivalTime,
                departureTime: routeStation.departureTime,
+               arrivalDayOffset: routeStation.arrivalDayOffset,
+               departureDayOffset: routeStation.departureDayOffset,
                distanceFromOrigin: routeStation.distanceFromOrigin
           }))
      };

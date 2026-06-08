@@ -7,11 +7,11 @@ datasource db {
 }
 
 enum CoachType {
-  AC_FIRST_CLASS
-  AC_TWO_TIER
-  AC_THREE_TIER
-  SLEEPER
-  GENERAL
+  AC_FIRST_CLASS // H1, H2, H3
+  AC_TWO_TIER // A1, A2, A3
+  AC_THREE_TIER // B1, B2, B3
+  SLEEPER // S1, S2, S3
+  GENERAL // GS
 }
 
 enum BerthType {
@@ -63,6 +63,8 @@ model Coach {
   coachNumber String              // "A1", "B2", "S3", "G1"
   coachType   CoachType           // AC_FIRST_CLASS, SLEEPER, etc.
   totalSeats  Int                 // total seats in this coach
+  baseFare    Float     @default(0) // fixed fare for this coach
+  farePerKm   Float     @default(0) // distance-based fare for this coach
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -79,7 +81,6 @@ model Seat {
   coachId    String
   seatNumber Int                 // 1, 2, 3... within the coach
   berthType  BerthType           // LOWER, MIDDLE, UPPER etc.
-  price      Float               // price for this berth type
 
   coach Coach @relation(fields: [coachId], references: [id], onDelete: Cascade)
 
@@ -105,6 +106,8 @@ model RouteStation {
   sequenceNumber     Int             // 1, 2, 3... order in route
   arrivalTime        String?         // "06:00" (null for first station)
   departureTime      String?         // "06:10" (null for last station)
+  arrivalDayOffset   Int?    @default(0) // 0 for same day, 1 for next day, etc.
+  departureDayOffset Int?    @default(0) // 0 for same day, 1 for next day, etc.
   distanceFromOrigin Float   @default(0) // in km
 
   route   Route   @relation(fields: [routeId], references: [id], onDelete: Cascade)
